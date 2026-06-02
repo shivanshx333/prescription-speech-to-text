@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CRIS Prescription Speech-to-Text System — Convert spoken prescriptions into structured digital data.">
+    <title>Prescription Speech-to-Text | CRIS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Top Banner -->
+    <header class="top-banner">
+        <div class="banner-inner">
+            <div class="banner-left">
+                <div class="org-name">CRIS</div>
+                <div class="org-desc">Centre for Railway Information Systems</div>
+                <div class="org-dept">Ministry of Railways, Government of India</div>
+            </div>
+            <div class="banner-right">
+                <div class="sys-name">Prescription Speech-to-Text System</div>
+                <div class="sys-version">Medical Services Module v2.0</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Secondary Nav -->
+    <nav class="secondary-nav">
+        <div class="nav-inner">
+            <span class="breadcrumb">Medical Services &rsaquo; Prescription Digitization</span>
+            <div class="server-status" id="serverStatus">
+                <span class="server-dot offline"></span>
+                <span class="server-label">Checking server...</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Loading Overlay -->
+    <div class="spinner-overlay" id="spinnerOverlay">
+        <div class="spinner"></div>
+        <div class="spinner-text" id="spinnerText">Processing...</div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="content-grid">
+
+            <!-- Left Panel — Input -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Input</h2>
+                    <span class="badge" id="statusBadge">Ready</span>
+                </div>
+
+                <!-- Voice Recording -->
+                <div class="form-section">
+                    <h3 class="section-label">Voice Recording</h3>
+                    <p class="section-hint">Click to record a spoken prescription. Speak clearly near the microphone.</p>
+                    <div class="record-controls">
+                        <button class="btn btn-primary" id="recordBtn" onclick="toggleRecording()">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                            <span id="recordBtnText">Start Recording</span>
+                        </button>
+                        <div class="rec-indicator" id="recIndicator">
+                            <span class="rec-dot"></span>
+                            <span id="statusText">Ready to record</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"><span>OR</span></div>
+
+                <!-- Manual Text Entry -->
+                <div class="form-section">
+                    <h3 class="section-label">Manual Text Entry</h3>
+                    <label class="field-label" for="manualText">Enter prescription text:</label>
+                    <textarea
+                        id="manualText"
+                        placeholder="e.g., Paracetamol 500mg twice daily for 5 days after meals and Amoxicillin 250mg three times a day for 7 days before food"
+                        rows="4"
+                    ></textarea>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="processTextBtn" onclick="processManualText()">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                            </svg>
+                            Process Text
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearAll()">Clear All</button>
+                    </div>
+                </div>
+
+                <!-- Messages -->
+                <div class="message" id="messageBox"></div>
+            </section>
+
+            <!-- Right Panel — Output -->
+            <section class="panel panel-output">
+                <div class="panel-header">
+                    <h2 class="panel-title">Results</h2>
+                    <span class="result-count" id="resultCount"></span>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState">
+                    <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    <p class="empty-title">No results yet</p>
+                    <p class="empty-desc">Record or type a prescription to see extracted details here.</p>
+                </div>
+
+                <!-- Transcription -->
+                <div class="result-section hidden" id="transcriptionCard">
+                    <h3 class="section-label">Transcribed Text</h3>
+                    <div class="transcription-box" id="transcriptionText"></div>
+                    <div class="transcription-meta" id="transcriptionMeta"></div>
+                </div>
+
+                <!-- Corrected Text -->
+                <div class="result-section hidden" id="correctedCard">
+                    <h3 class="section-label">Corrected Text
+                        <span class="label-tag">Auto-corrected</span>
+                    </h3>
+                    <div class="corrected-box" id="correctedText"></div>
+                </div>
+
+                <!-- Parsed Results Table -->
+                <div class="result-section hidden" id="resultsCard">
+                    <h3 class="section-label">Extracted Prescription Details</h3>
+                    <div class="table-wrapper">
+                        <table id="resultsTable">
+                            <thead>
+                                <tr>
+                                    <th class="col-num">#</th>
+                                    <th>Medicine</th>
+                                    <th>Dosage</th>
+                                    <th>Frequency</th>
+                                    <th>Duration</th>
+                                    <th>Instructions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <span>CRIS &mdash; Centre for Railway Information Systems, Ministry of Railways</span>
+            <span>Prescription Digitization Module</span>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
