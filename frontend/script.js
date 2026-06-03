@@ -1,149 +1,159 @@
 /**
- * script.js — Prescription Speech-to-Text Frontend
+ * script.js — CRIS Prescription Speech-to-Text Frontend
  *
- * Handles microphone recording, API communication, and results rendering
- * for the CRIS Prescription Speech-to-Text System.
+ * Uses the browser's Web Speech API for real-time voice transcription,
+ * then sends text to the backend for medicine parsing.
  */
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = window.location.origin;
 
 // --------------------------------------------------------------------------
 // State
 // --------------------------------------------------------------------------
-let mediaRecorder = null;
-let audioChunks = [];
 let isRecording = false;
+let finalTranscript = "";
+
+// --------------------------------------------------------------------------
+// Web Speech API setup
+// --------------------------------------------------------------------------
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+
+if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-IN";
+
+    recognition.onresult = function (event) {
+        let interim = "";
+        finalTranscript = "";
+        for (let i = 0; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript + " ";
+            } else {
+                interim += event.results[i][0].transcript;
+            }
+        }
+        liveText.textContent = finalTranscript + interim;
+    };
+
+    recognition.onend = function () {
+        // Browser stops recognition after silence — restart if still recording
+        if (isRecording) {
+            try { recognition.start(); } catch (e) { /* already started */ }
+        }
+    };
+
+    recognition.onerror = function (event) {
+        console.error("Speech error:", event.error);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+            showMessage("error", "Microphone access denied. Please allow microphone access in browser settings.");
+            stopRecording();
+        } else if (event.error === "no-speech") {
+            // Ignored — will auto-restart
+        } else {
+            showMessage("error", "Speech recognition error: " + event.error);
+        }
+    };
+}
 
 // --------------------------------------------------------------------------
 // DOM Elements
 // --------------------------------------------------------------------------
-const recordBtn        = document.getElementById("recordBtn");
-const recordBtnText    = document.getElementById("recordBtnText");
-const statusBadge      = document.getElementById("statusBadge");
-const recIndicator     = document.getElementById("recIndicator");
-const recDot           = recIndicator.querySelector(".rec-dot");
-const statusText       = document.getElementById("statusText");
-const manualText       = document.getElementById("manualText");
-const processTextBtn   = document.getElementById("processTextBtn");
-const messageBox       = document.getElementById("messageBox");
+const recordBtn         = document.getElementById("recordBtn");
+const recordBtnText     = document.getElementById("recordBtnText");
+const statusBadge       = document.getElementById("statusBadge");
+const recIndicator      = document.getElementById("recIndicator");
+const recDot            = recIndicator.querySelector(".rec-dot");
+const statusText        = document.getElementById("statusText");
+const liveTranscriptEl  = document.getElementById("liveTranscript");
+const liveText          = document.getElementById("liveText");
+const manualText        = document.getElementById("manualText");
+const processTextBtn    = document.getElementById("processTextBtn");
+const messageBox        = document.getElementById("messageBox");
 const transcriptionCard = document.getElementById("transcriptionCard");
 const transcriptionText = document.getElementById("transcriptionText");
 const transcriptionMeta = document.getElementById("transcriptionMeta");
-const correctedCard    = document.getElementById("correctedCard");
-const correctedText    = document.getElementById("correctedText");
-const resultsCard      = document.getElementById("resultsCard");
-const resultsBody      = document.getElementById("resultsBody");
-const resultCount      = document.getElementById("resultCount");
-const emptyState       = document.getElementById("emptyState");
-const spinnerOverlay   = document.getElementById("spinnerOverlay");
-const spinnerText      = document.getElementById("spinnerText");
-const serverStatusEl   = document.getElementById("serverStatus");
+const correctedCard     = document.getElementById("correctedCard");
+const correctedText     = document.getElementById("correctedText");
+const resultsCard       = document.getElementById("resultsCard");
+const resultsBody       = document.getElementById("resultsBody");
+const resultCount       = document.getElementById("resultCount");
+const emptyState        = document.getElementById("emptyState");
+const spinnerOverlay    = document.getElementById("spinnerOverlay");
+const spinnerText       = document.getElementById("spinnerText");
+const serverStatusEl    = document.getElementById("serverStatus");
 
 // --------------------------------------------------------------------------
-// Recording
+// Recording (Web Speech API)
 // --------------------------------------------------------------------------
 
-async function toggleRecording() {
+function toggleRecording() {
     if (isRecording) {
         stopRecording();
     } else {
-        await startRecording();
+        startRecording();
     }
 }
 
-async function startRecording() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                channelCount: 1,
-                sampleRate: 16000,
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-            }
-        });
-
-        const mimeType = getSupportedMimeType();
-        mediaRecorder = new MediaRecorder(stream, { mimeType });
-        audioChunks = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) audioChunks.push(event.data);
-        };
-
-        mediaRecorder.onstop = () => {
-            stream.getTracks().forEach(t => t.stop());
-            const audioBlob = new Blob(audioChunks, { type: mimeType });
-
-            if (audioBlob.size < 1000) {
-                showMessage("error", "Recording too short. Please speak for at least 2–3 seconds.");
-                setStatus("ready");
-                return;
-            }
-
-            processAudio(audioBlob);
-        };
-
-        mediaRecorder.start(250);
-        isRecording = true;
-
-        recordBtnText.textContent = "Stop Recording";
-        recordBtn.classList.add("recording");
-        setStatus("recording");
-        hideMessage();
-
-    } catch (error) {
-        if (error.name === "NotAllowedError") {
-            showMessage("error", "Microphone access denied. Allow microphone access in browser settings.");
-        } else if (error.name === "NotFoundError") {
-            showMessage("error", "No microphone found. Please connect a microphone.");
-        } else {
-            showMessage("error", "Could not access microphone: " + error.message);
-        }
+function startRecording() {
+    if (!recognition) {
+        showMessage("error",
+            "Speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
+        return;
     }
+
+    finalTranscript = "";
+    liveText.textContent = "";
+    liveTranscriptEl.classList.add("active");
+    hideMessage();
+
+    try {
+        recognition.start();
+    } catch (e) {
+        // Already started
+    }
+
+    isRecording = true;
+    recordBtnText.textContent = "Stop Recording";
+    recordBtn.classList.add("recording");
+    setStatus("recording");
 }
 
 function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-        isRecording = false;
-        recordBtnText.textContent = "Start Recording";
-        recordBtn.classList.remove("recording");
-        setStatus("processing");
-    }
-}
+    isRecording = false;
 
-function getSupportedMimeType() {
-    const types = [
-        "audio/webm;codecs=opus",
-        "audio/webm",
-        "audio/ogg;codecs=opus",
-        "audio/ogg",
-        "audio/mp4",
-    ];
-    for (const type of types) {
-        if (MediaRecorder.isTypeSupported(type)) return type;
+    if (recognition) {
+        try { recognition.stop(); } catch (e) { /* not started */ }
     }
-    return "audio/webm";
+
+    recordBtnText.textContent = "Start Recording";
+    recordBtn.classList.remove("recording");
+
+    const text = (liveText.textContent || "").trim();
+    if (text && text.length > 2) {
+        setStatus("processing");
+        processVoiceText(text);
+    } else {
+        liveTranscriptEl.classList.remove("active");
+        showMessage("error", "No speech detected. Please speak clearly and try again.");
+        setStatus("ready");
+    }
 }
 
 // --------------------------------------------------------------------------
 // API Communication
 // --------------------------------------------------------------------------
 
-async function processAudio(audioBlob) {
-    showSpinner("Processing audio...");
+async function processVoiceText(text) {
+    showSpinner("Parsing prescription...");
     try {
-        const formData = new FormData();
-        const ext = audioBlob.type.includes("ogg") ? "ogg" :
-                    audioBlob.type.includes("mp4") ? "mp4" : "webm";
-        formData.append("audio", audioBlob, "recording." + ext);
-
-        const response = await fetch(API_BASE + "/api/process", {
+        const response = await fetch(API_BASE + "/api/process-text", {
             method: "POST",
-            body: formData,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: text }),
         });
-
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Server error.");
 
@@ -151,16 +161,14 @@ async function processAudio(audioBlob) {
         setStatus("ready");
         showMessage("success",
             "Extracted " + data.prescription.num_medicines + " medicine(s) from prescription.");
-
     } catch (error) {
         setStatus("error");
-        if (error.message.includes("Failed to fetch")) {
-            showMessage("error", "Cannot connect to server. Ensure the Flask backend is running on localhost:5000.");
-        } else {
-            showMessage("error", error.message);
-        }
+        showMessage("error", error.message.includes("Failed to fetch")
+            ? "Cannot connect to server."
+            : error.message);
     } finally {
         hideSpinner();
+        liveTranscriptEl.classList.remove("active");
     }
 }
 
@@ -170,28 +178,23 @@ async function processManualText() {
         showMessage("error", "Please enter prescription text first.");
         return;
     }
-
-    showSpinner("Parsing prescription text...");
+    showSpinner("Parsing prescription...");
     try {
         const response = await fetch(API_BASE + "/api/process-text", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text }),
+            body: JSON.stringify({ text: text }),
         });
-
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Server error.");
 
         displayResults(data);
         showMessage("success",
             "Extracted " + data.prescription.num_medicines + " medicine(s) from prescription.");
-
     } catch (error) {
-        if (error.message.includes("Failed to fetch")) {
-            showMessage("error", "Cannot connect to server. Ensure the Flask backend is running on localhost:5000.");
-        } else {
-            showMessage("error", error.message);
-        }
+        showMessage("error", error.message.includes("Failed to fetch")
+            ? "Cannot connect to server."
+            : error.message);
     } finally {
         hideSpinner();
     }
@@ -202,7 +205,6 @@ async function processManualText() {
 // --------------------------------------------------------------------------
 
 function displayResults(data) {
-    // Hide empty state
     emptyState.classList.add("hidden");
 
     // Transcription
@@ -214,7 +216,7 @@ function displayResults(data) {
     transcriptionMeta.textContent = meta;
     transcriptionCard.classList.remove("hidden");
 
-    // Corrected text (show only if different from transcription)
+    // Corrected text
     const corrected = data.prescription.corrected_text || "";
     const normalized = data.prescription.normalized_text || "";
     if (corrected && corrected !== normalized) {
@@ -226,23 +228,20 @@ function displayResults(data) {
 
     // Results table
     resultsBody.innerHTML = "";
-    const prescriptions = data.prescription.prescriptions;
+    var prescriptions = data.prescription.prescriptions;
 
-    prescriptions.forEach(function(rx, index) {
-        const row = document.createElement("tr");
+    prescriptions.forEach(function (rx, index) {
+        var row = document.createElement("tr");
 
-        // Row number
-        const numCell = document.createElement("td");
+        var numCell = document.createElement("td");
         numCell.textContent = index + 1;
         row.appendChild(numCell);
 
-        // Medicine name
-        const medCell = document.createElement("td");
-        const confidence = rx.confidence || 0;
+        var medCell = document.createElement("td");
+        var confidence = rx.confidence || 0;
 
-        // Confidence dot
         if (confidence > 0 && confidence < 1) {
-            const dot = document.createElement("span");
+            var dot = document.createElement("span");
             dot.className = "confidence-indicator " +
                 (confidence >= 0.9 ? "confidence-high" :
                  confidence >= 0.8 ? "confidence-medium" : "confidence-low");
@@ -250,13 +249,13 @@ function displayResults(data) {
             medCell.appendChild(dot);
         }
 
-        const medName = document.createElement("span");
+        var medName = document.createElement("span");
         medName.className = "medicine-name";
         medName.textContent = rx.medicine_name;
         medCell.appendChild(medName);
 
         if (rx.generic_name) {
-            const genName = document.createElement("span");
+            var genName = document.createElement("span");
             genName.className = "generic-name";
             genName.textContent = "Generic: " + rx.generic_name;
             medCell.appendChild(genName);
@@ -276,9 +275,9 @@ function displayResults(data) {
 }
 
 function createCell(value) {
-    const cell = document.createElement("td");
+    var cell = document.createElement("td");
     if (value === "Not specified") {
-        const span = document.createElement("span");
+        var span = document.createElement("span");
         span.className = "not-specified";
         span.textContent = "—";
         cell.appendChild(span);
@@ -293,22 +292,16 @@ function createCell(value) {
 // --------------------------------------------------------------------------
 
 function setStatus(state) {
-    const labels = {
-        ready: "Ready",
-        recording: "Recording",
-        processing: "Processing",
-        error: "Error",
-    };
-    const statusLabels = {
+    var labels = { ready: "Ready", recording: "Recording", processing: "Processing", error: "Error" };
+    var hints = {
         ready: "Ready to record",
-        recording: "Recording... speak your prescription",
-        processing: "Processing audio...",
+        recording: "Listening... speak your prescription",
+        processing: "Parsing prescription...",
         error: "Processing failed",
     };
-
     statusBadge.textContent = labels[state] || state;
     statusBadge.className = "badge " + state;
-    statusText.textContent = statusLabels[state] || "";
+    statusText.textContent = hints[state] || "";
     recDot.className = "rec-dot " + state;
 }
 
@@ -333,19 +326,17 @@ function hideSpinner() {
 
 function clearAll() {
     manualText.value = "";
-
     transcriptionCard.classList.add("hidden");
     correctedCard.classList.add("hidden");
     resultsCard.classList.add("hidden");
-
+    liveTranscriptEl.classList.remove("active");
     resultsBody.innerHTML = "";
     transcriptionText.textContent = "";
     transcriptionMeta.textContent = "";
     correctedText.textContent = "";
     resultCount.textContent = "";
-
+    liveText.textContent = "";
     emptyState.classList.remove("hidden");
-
     setStatus("ready");
     hideMessage();
 }
@@ -355,13 +346,11 @@ function clearAll() {
 // --------------------------------------------------------------------------
 
 async function checkServer() {
-    const dot = serverStatusEl.querySelector(".server-dot");
-    const label = serverStatusEl.querySelector(".server-label");
-
+    var dot = serverStatusEl.querySelector(".server-dot");
+    var label = serverStatusEl.querySelector(".server-label");
     try {
-        const response = await fetch(API_BASE + "/api/health");
+        var response = await fetch(API_BASE + "/api/health");
         if (response.ok) {
-            const data = await response.json();
             dot.className = "server-dot online";
             label.textContent = "Server online";
         } else {
@@ -371,9 +360,13 @@ async function checkServer() {
     } catch (e) {
         dot.className = "server-dot offline";
         label.textContent = "Server offline";
-        showMessage("info",
-            "Backend server not detected. Start the Flask server: cd backend && python app.py");
     }
+}
+
+// Speech API support indicator
+if (!SpeechRecognition) {
+    document.getElementById("recIndicator").innerHTML =
+        '<span class="rec-dot error"></span><span>Browser speech not supported — use text input or switch to Chrome/Edge</span>';
 }
 
 checkServer();
