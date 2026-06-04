@@ -1,15 +1,6 @@
 """
-app.py
-======
 Flask backend for the Prescription Speech-to-Text system.
-
-Endpoints:
-    POST /api/process       — Upload audio → Whisper STT → parse (local only)
-    POST /api/process-text  — Submit text → parse → JSON (primary endpoint)
-    GET  /api/health        — Health check
-
-Whisper is optional. When deployed to the cloud, the browser's Web Speech
-API handles speech-to-text and the server only parses text.
+Endpoints: /api/process, /api/process-text, /api/health.
 """
 
 import os

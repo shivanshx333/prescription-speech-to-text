@@ -1,11 +1,6 @@
-/* ==========================================================================
-   style.css — CRIS Prescription Speech-to-Text System
-   ==========================================================================
-   Enterprise / government UI theme: navy accents, clean typography,
-   restrained palette, professional card layout.
-   ========================================================================== */
+/* CRIS Prescription Speech-to-Text — navy/steel enterprise theme */
 
-/* ---------- Design Tokens ---------- */
+/* Design tokens */
 :root {
     --navy:             #1a365d;
     --navy-dark:        #102a4a;

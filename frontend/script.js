@@ -1,9 +1,4 @@
-/**
- * script.js — CRIS Prescription Speech-to-Text Frontend
- *
- * Uses the browser's Web Speech API for real-time voice transcription,
- * then sends text to the backend for medicine parsing.
- */
+// Records voice via the browser, sends text to the backend for parsing.
 
 const API_BASE = window.location.origin;
 

@@ -1,11 +1,6 @@
 """
 medicine_data.py
-================
-Reference data module for the prescription parser.
-
-Contains a comprehensive Indian-market medicine database including
-generic names, brand-to-generic mappings, ASR correction tables,
-and extraction patterns.
+Indian medicine database used by the prescription parser.
 """
 
 # --------------------------------------------------------------------------
@@ -146,8 +141,7 @@ COMMON_MEDICINES = [
 MEDICINE_SET = set(COMMON_MEDICINES)
 
 # --------------------------------------------------------------------------
-# Brand name -> generic name mapping
-# Comprehensive Indian pharmaceutical market coverage.
+# Brand name -> generic name mapping (Indian pharma brands)
 # --------------------------------------------------------------------------
 BRAND_TO_GENERIC = {
     # -- Paracetamol brands --

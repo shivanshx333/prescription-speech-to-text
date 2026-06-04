@@ -1,15 +1,7 @@
 """
-prescription_parser.py
-======================
-NLP extraction engine for parsing prescription text into structured data.
-
-Uses a multi-pass pipeline:
-1. Text normalization (lowercasing, filler removal, number-word replacement)
-2. ASR correction (known Whisper mistakes, split-word rejoining)
-3. Fuzzy medicine matching (edit distance + phonetic scoring)
-4. Field extraction (dosage, frequency, duration, instructions)
-
-Handles multi-medicine prescriptions by splitting on natural delimiters.
+Parses prescription text into structured fields:
+medicine name, dosage, frequency, duration, instructions.
+Uses regex + fuzzy string matching against the medicine list.
 """
 
 import re
