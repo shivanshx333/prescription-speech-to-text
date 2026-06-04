@@ -16,3 +16,4 @@ env/
 .claude/
 *.tmp
 *.log
+cris-hmis-voice/
